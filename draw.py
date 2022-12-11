@@ -1,22 +1,21 @@
-# import sys
-# sys.path.append("loss_landscape_anim_or\\loss_landscape_anim")
 from loss_landscape_anim.main import loss_landscape_anim, LeNet, VGG
-# from datamodule import CIFAR10DataModule
+from loss_landscape_anim.model import CNN
 from loss_landscape_anim.datamodule import MNISTDataModule
+
 
 bs = 16 
 lr = 1e-3 
 datamodule = MNISTDataModule(batch_size=bs, n_examples=3000) 
-model = LeNet(learning_rate=lr) 
-# model = VGG("VGG11",lr) 显存不够跑不起来，你可以试试
+# model = LeNet(learning_rate=lr) 
+model = CNN(learning_rate=lr)
 
 optim_path, loss_steps, accu_steps = loss_landscape_anim( 
     n_epochs=10, 
     model=model, 
     datamodule=datamodule,
     optimizer= "sgd", 
-    model_filename='lenet.pt',
-    output_filename='lenet.gif',
+    model_filename='alexnet.pt',
+    output_filename='alexnet.gif',
     giffps=15, 
     seed=180102, 
     load_model=False, 

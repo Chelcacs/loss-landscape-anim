@@ -65,7 +65,7 @@ class MNISTDataModule(pl.LightningDataModule):
         self.input_dim = (1, 28, 28)
         transform = transforms.Compose(
             [
-                transforms.Resize(32),
+                transforms.Resize(28),
                 transforms.ToTensor(),
                 transforms.Normalize((0.1307,), (0.3081,)),
             ]

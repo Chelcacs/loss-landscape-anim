@@ -10,6 +10,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.optim import SGD, Adam, Adagrad, RMSprop
+from torch.nn import Sequential
 
 
 class GenericModel(pl.LightningModule):
@@ -284,6 +285,80 @@ class LeNet(GenericModel):
     def training_epoch_end(self, training_step_outputs):
         """Only save the last step in each epoch.
 
+        Args:
+            training_step_outputs: all the steps in this epoch.
+        """
+        self.optim_path.extend(training_step_outputs)
+
+
+class CNN(GenericModel):  # 从父类 nn.Module 继承
+    def __init__(self,learning_rate, optimizer= 'adam', custom_optimizer=None, gpus=0,disable_dropout = False, disable_BN = False):  # 相当于 C++ 的构造函数
+        # super() 函数是用于调用父类(超类)的一个方法，是用来解决多重继承问题的
+        super().__init__(optimizer, learning_rate, custom_optimizer, gpus=gpus)
+        # super(CNN, self).__init__()
+        self.dp = disable_dropout
+        self.bn = disable_BN
+
+        # 第一层卷积层
+        self.conv1 = Sequential()
+        self.conv1.add_module("P1",nn.Conv2d(in_channels=1, out_channels=64, kernel_size=3, stride=1, padding=1))  # 卷积层
+        if not self.bn: self.conv1.add_module("P2",nn.BatchNorm2d(64))
+        self.conv1.add_module("P3",nn.ReLU())  # 激活函数
+        self.conv1.add_module("P4",nn.MaxPool2d(kernel_size=2, stride=2))  # 池化层
+
+        # 第二卷积层
+        self.conv2 = Sequential()
+        self.conv2.add_module("P5",nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1))
+        if not self.bn: self.conv2.add_module("P6",nn.BatchNorm2d(128))
+        self.conv2.add_module("P7",nn.ReLU())
+        self.conv2.add_module("P8",nn.MaxPool2d(kernel_size=2, stride=2))
+
+        # 全连接层
+        self.dense = Sequential()
+        self.dense.add_module("P9",nn.Linear(7 * 7 * 128, 1024))
+        self.dense.add_module("P10",nn.ReLU())
+        if not self.dp: self.dense.add_module("P11",nn.Dropout(0.5))
+        self.dense.add_module("P12",nn.Linear(1024, 10))
+
+    def forward(self, x):  # 正向传播
+        x1 = self.conv1(x)
+        x2 = self.conv2(x1)
+        x = x2.view(-1, 7 * 7 * 128)
+        x = self.dense(x)
+        return x
+
+    def loss_fn(self, y_pred, y):
+        """Loss function."""
+        return F.cross_entropy(y_pred, y)
+
+    def training_step(self, batch, batch_idx):
+        """Training step for a batch of data.
+        The model computes the loss and save it along with the flattened model params.
+        """
+        X, y = batch
+        y_pred = self(X)
+        # Get model weights flattened here to append to optim_path later
+        flat_w = self.get_flat_params()
+        loss = self.loss_fn(y_pred, y)
+
+        preds = y_pred.max(dim=1)[1]  # class
+        accuracy = self.accuracy(preds, y)
+
+        self.log(
+            "train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True
+        )
+        self.log(
+            "train_acc",
+            accuracy,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+        return {"loss": loss, "accuracy": accuracy, "flat_w": flat_w}
+
+    def training_epoch_end(self, training_step_outputs):
+        """Only save the last step in each epoch.
         Args:
             training_step_outputs: all the steps in this epoch.
         """
